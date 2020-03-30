@@ -1,4 +1,5 @@
 #include "lib.h"
+#include "stdio.h"
 
 size_t get_size(block *b) {
   return b->size - (b->size % sizeof(void *));
@@ -123,4 +124,19 @@ void mem_free(void *addr) {
     to_merge->size = to_merge->size + b->size + sizeof(block);
     to_merge->next = b->next;
   }
+}
+
+void pprint(block *b) {
+  printf("block: %p {\n\tsize: %d,\n\tused: %d,\n\tnext: %p,\n\tprev: %p,\n\tdata: %p\n}\n",
+         b, get_size(b), is_used(b), b->next, b->prev, b->data);
+}
+
+void mem_dump() {
+  block *b = heap_start;
+  for(;b->next;b = b->next) {
+    pprint(b);
+    printf("\n");
+  }
+  pprint(b);
+  printf("\n");
 }

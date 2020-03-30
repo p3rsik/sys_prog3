@@ -43,3 +43,6 @@ void *mem_alloc(size_t);
 void *mem_realloc(void *, size_t);
 // Frees memory
 void mem_free(void *);
+
+void pprint(block *);
+void mem_dump();

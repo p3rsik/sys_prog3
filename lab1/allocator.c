@@ -30,7 +30,10 @@ int main() {
       assert(h3->prev == h1);
     }
   }
-
+  
+  printf("\n");
+  // Let's see memory state after all the allocation, deallocation and splitting
+  mem_dump();
   
   return 0;
 }
