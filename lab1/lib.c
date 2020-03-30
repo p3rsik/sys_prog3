@@ -28,16 +28,26 @@ size_t align(size_t n) {
 
 struct block *find_block(size_t size) {
   struct block *cur = heap_start;
-  for(struct block *cur;(cur != NULL) && (cur->used!=0) && (cur->size<size); cur = cur->next);
+  
+  for(;(cur != NULL) && (cur->used!=0) && (cur->size<size); cur = cur->next);
   return cur;
 }
 
 struct block *split_block(struct block *to_split, size_t size) {
-  // TODO
+  struct block *new_header = to_split->data + size;
+  new_header->size = to_split->size - size;
+  new_header->next = to_split->next;
+  new_header->prev = to_split;
+  new_header->data = to_split->data + size + sizeof(struct block) - sizeof(void *);
+  to_split->size = size;
+  to_split->next = new_header;
+
+  return to_split;
 }
 
 void *mem_alloc(size_t size) {
   size = align(size);
+
   struct block *b;
 
   // Try to find block to reuse
@@ -46,6 +56,7 @@ void *mem_alloc(size_t size) {
     // can't contain new block of minimum aligned size
     if(b->size >= (size + sizeof(struct block)) + sizeof(void *)) {
       b = split_block(b, size);
+      b->used = 1;
     }
     return b->data;
   }
