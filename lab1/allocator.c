@@ -1,87 +1,196 @@
-#include "lib.h"
+#include "allocator.h"
 #include "stdio.h"
-#include "assert.h"
 
-int main() {
-  printf("sizeof(block) = %d\n", sizeof(struct block));
+size_t alloc_size(size_t size) {
+  // we need to allocate additional memory for block header
+  // and substract one pointer from there, since our data segments starts in header
+  return sizeof(block) + size - sizeof(void *);
+}
 
-  printf("Allocating...\n");
-  void *p1 = mem_alloc(8);
-  if(!p1)
-    return 1;
-
-  void *p2 = mem_alloc(228);
-  if(!p2)
-    return 1;
-
-  printf("Allocated: %p and %p\n\n", p1, p2);
-  block *h1 = get_header(p1);
-  printf("Got header1: %p\n", h1);
-  printf("Size1 = %d, aligned size = %d\n", 8, get_size(h1));
-
-  block *h2 = get_header(p2);
-  printf("Got header2: %p\n", h2);
-  printf("Size2 = %d, aligned size = %d\n", 228, get_size(h2));
-
-  // Test block linking
-  assert(get_next(h1) == h2);
-  assert(get_prev(h2) == h1);
-
-  printf("Freeing memory for the second block...\n");
-  mem_free(p2);
-
-  // Test used bit flag setting
-  assert(is_used(h2) == 0);
+block *request_from_os(size_t size) {
+  // get current heap break
+  block *b = (block *) sbrk(0);
   
-  printf("Allocating 20 more bytes...\n");
-  void *p3 = mem_alloc(20);
-  if(!p3)
-    return 1;
+  if (sbrk(alloc_size(size)) == (void *)-1) {
+    return NULL;
+  }
 
-  printf("Allocated: %p\n", p3);
-  block *h3 = get_header(p3);
-  printf("Got header3: %p\n", h3);
-  printf("Size3 = %d, aligned size = %d\n", 20, get_size(h3));
+  return b;
+}
 
-  // Test block linking
-  assert(get_prev(h3) == h1);
-  assert(has_next(h3) == 1);
-  assert(get_prev(get_next(h3)) == h3);
+size_t align(size_t n) {
+  return (n + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
+}
+
+block *find_block(size_t size) {
+  if(DEBUG > 1) { printf("[FIND_BLOCK]: Got request to find block of size %d\n", size); }
+  if(!heap_start) {
+    if(DEBUG > 1) { printf("[FIND_BLOCK]: No block exist yet, exiting...\n"); }
+    return NULL;
+  }
+  block *cur = heap_start;
   
-  printf("============================\n");
-  mem_dump();
-  printf("============================\n");
+  while(cur) {
+    if(DEBUG > 1) {
+      printf("[FIND_BLOCK]: ");
+      pprint(cur);
+    }
+    if(!is_used(cur) && (get_size(cur) >= size)) {
+      return cur;
+    }
+    if(DEBUG > 1) { printf("[FIND_BLOCK]: Block %p is used or smaller than requested..\n", cur); }
+    cur = get_next(cur);
+  }
+
+  return NULL;
+}
+
+block *split_block(block *to_split, size_t size) {
+  if(DEBUG > 1) { printf("[SPLIT_BLOCK]: Got request to cut %d bytes from the beginning of block %p\n", size, to_split); }
+  // basically *to_split* becomes our block, and we "allocate" new block after this one
+  block *new_header = to_split->data + size;
+  // we can omit calls to get_size here,
+  // since we knew that splitting only occurs on free blocks
+  new_header->size = to_split->size - size - sizeof(block);
+  if(has_next(to_split)) {
+    set_next(new_header);
+  } 
+  set_prev(new_header, to_split);
+  set_next(to_split);
+  new_header->data = to_split->data + size + sizeof(block) - sizeof(void *);
+  to_split->size = size;
+  if(DEBUG > 1) { printf("[SPLIT_BLOCK]: Split block into %p with size %d and %p with size %d\n", 
+                         to_split, get_size(to_split), new_header, get_size(new_header)); }
+
+  return to_split;
+}
+
+void *mem_alloc(size_t size) {
+  if(DEBUG) { printf("[MEM_ALLOC]: Got request to allocate %d bytes\n", size); }
+  size = align(size);
+  if(DEBUG) { printf("[MEM_ALLOC]: Actually allocating %d bytes\n", size); }
+
+  block *b;
+
+  // Try to find block to reuse
+  if(b = find_block(size)) {
+    if(DEBUG) { printf("[MEM_ALLOC]: Found block %p with size %d\n", b, get_size(b)); }
+    // It's impossible to split block if it's data segment 
+    // can't contain new block of minimum aligned size + header
+    if(b->size >= (size + sizeof(block)) + sizeof(void *)) {
+      if(DEBUG) { printf("[MEM_ALLOC]: Can split this block...\n"); }
+      b = split_block(b, size);
+      // Encoding *used* bit flag here
+      b->size += 1;
+    }
+    return b->data;
+  }
   
-  printf("Freeing memory for the first block...\n");
-  mem_free(p1);
+  // if not found, request new memory from OS
+  if(DEBUG) { printf("[MEM_ALLOC]: Found no block that fits the requirements, requesting memory from OS...\n"); }
+  b = request_from_os(size);
+  if (!b) {
+    if(DEBUG) { printf("[MEM_ALLOC]: Request unseccessful...\n"); }
+    return NULL;
+  }
+  // Encoding *used* bit flag here
+  b->size = size + 1;
+  b->data = (void *) (((void *) b) + sizeof(block) - sizeof(void *));
 
-  assert(is_used(h1) == 0);
+  // Init heap
+  if(heap_start == NULL) {
+    if(DEBUG) { printf("[MEM_ALLOC]: No block exists yet, initing heap_start pointer...\n"); }
+    heap_start = b;
+  }
+  // Chain blocks
+  if(top == NULL) {
+    top = b;
+  } else {
+    set_next(top);
+    set_prev(b, top);
+  }
+  top = b;
 
-  printf("Allocating 20 more bytes...\n");
-  void *p4 = mem_alloc(20);
-  if(!p4)
-    return 1;
+  return b->data;
+}
+
+void mem_copy(void *addr1, void *addr2, size_t size) {
+  if(DEBUG > 1) { printf("[MEM_COPY]: Copying memory of size %d from %p to %p\n", size, addr2, addr1); }
+  char *a1 = ((char *) addr1) + sizeof(void *), *a2 = (char *) addr2;
+  for(size_t i = 0; i < size; i++) {
+    if(DEBUG > 1) { printf("[MEM_COPY]: Copying %d from %p to %p\n", *(a2 + i), (a2 + i), (a1 + i)); }
+    *(a1 + i) = *(a2 + i);
+  }
+}
+
+void *mem_realloc(void *addr, size_t size) {
+  if(DEBUG) { printf("[MEM_REALLOC]: Gor request for reallocation of addr %p with new size %d\n", addr, size); }
+  if(!addr) {
+  if(DEBUG) { printf("[MEM_REALLOC]: Since addr = NULL allocating new block...\n"); }
+    return mem_alloc(size);
+  }
+  // save block
+  block *old = get_header(addr);
   
-  printf("Allocated: %p\n", p4);
-  block *h4 = get_header(p4);
-  printf("Got header4: %p\n", h4);
-  printf("Size4 = %d, aligned size = %d\n", 20, get_size(h4));
-
-  printf("============================\n");
-  mem_dump();
-  printf("============================\n");
-
-  printf("Freeing memory for the first 20-byte block...\n");
-  mem_free(p3);
+  if(get_size(old) >= size) {
+    if(DEBUG) { printf("[MEM_REALLOC]: Since new size <= than old size returning old block...\n"); }
+    return old;
+  }
   
-  assert(get_next(h1) == h4);
-  assert(get_prev(h4) == h1);
+  block *new = get_header(mem_alloc(size));
+  if(DEBUG) { printf("[MEM_REALLOC]: Allocated new block %p\n", new); }
+  mem_copy(new->data, old->data, get_size(old));
+  mem_free(addr);
+  if(DEBUG) { printf("[MEM_REALLOC]: Copied old data to the new block and freed old block...\n"); }
+  return new;
+}
 
-  printf("\n");
-  // Let's see memory state after all the allocation, deallocation, splitting and merging
-  printf("============================\n");
-  mem_dump();
-  printf("============================\n");
+block *merge_blocks(block *b1, block *b2) {
+  if(DEBUG > 1) { printf("[MERGE_BLOCKS]: Merging blocks %p and %p\n", b1, b2); }
+  // new size equals to sum of data segments + sizeof block header 
+  // - sizeof pointer to data segment of the second block
+  b1->size = get_size(b1) + get_size(b2) + sizeof(block) - sizeof(void *);
+  // We don't need to set_next b1, since it had next in the past,
+  // but we need to unset it, if b2 doesn't have next
+  if(has_next(b2)) {
+    block *b = get_next(b2);
+    if(DEBUG > 1) { printf("[MERGE_BLOCKS]: Block %p has next block %p\n", b2, b); }
+    set_prev(b, b1);
+  } else { unset_next(b1); }
+  if(DEBUG > 1) { printf("[MERGE_BLOCKS]: New block has addr %p and size %d\n", b1, get_size(b1)); }
+
+  return b1;
+}
+
+void mem_free(void *addr) {
+  block *b = get_header(addr);
+  if(DEBUG) { printf("[MEM_FREE]: Got request to free %p block\n", b); }
+  block *to_merge = get_next(b);
   
-  return 0;
+  // Setting *used* bit flag to 0
+  b->size = b->size - 1;
+  // now we can use actual block.size here
+  // because we are sure, that all blocks are free
+  if (to_merge && !is_used(to_merge)) {
+    if(DEBUG) { printf("[MEM_FREE]: Can merge this block and the next one...\n"); }
+    b = merge_blocks(b, to_merge);
+  }
+  to_merge = get_prev(b);
+  if(to_merge && !is_used(to_merge)) {
+    if(DEBUG) { printf("[MEM_FREE]: Can merge prev block and this one...\n"); }
+    merge_blocks(to_merge, b);
+  }
+}
+
+void pprint(block *b) {
+  printf("block: %p {\n\tsize: %d,\n\tused: %d,\n\thas_next: %d,\n\tnext: %p,\n\tprev: %p,\n\tdata: %p\n}\n",
+         b, get_size(b), is_used(b), has_next(b), get_next(b), get_prev(b), b->data);
+}
+
+void mem_dump() {
+  block *b = heap_start;
+  while(b) {
+    pprint(b);
+    b = get_next(b);
+  }
 }

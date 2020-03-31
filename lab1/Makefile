@@ -1,8 +1,10 @@
 CC=gcc
 NAME=test
+DEPS=main.c allocator.c struct.c
+LIBS=allocator.h struct.h
 
-compile: allocator.c lib.h lib.c
-	$(CC) allocator.c lib.c -o $(NAME)
+compile: $(DEPS) $(LIBS)
+	$(CC) $(DEPS) -o $(NAME)
 
 run:
 	./$(NAME)
