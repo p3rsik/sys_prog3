@@ -34,11 +34,18 @@ block *get_prev(block *b) {
 }
 
 void set_prev(block *b, block *to_set) {
+  printf("[SET_PREV]: Setting block %p as prev for %p\n", to_set, b);
   if(has_next(b)) {
+    printf("[SET_PREV]: Block %p has next block %p\n", b, get_next(b));
     unset_next(b);
+    printf("[SET_PREV]: Unsetting next...\n");
     b->prev = to_set;
+    printf("[SET_PREV]: Block %p has prev block %p\n", b, b->prev);
     set_next(b);
+    printf("[SET_PREV]: Setting next back on...\n");
+    return;
   } 
+  printf("[SET_PREV]: Setting block %p as prev for %p\n", to_set, b);
   b->prev = to_set;
 }
 
@@ -70,16 +77,26 @@ size_t align(size_t n) {
 }
 
 block *find_block(size_t size) {
-  if(DEBUG > 1) { printf("[FIND_BLOCK]: Got request to find block of %d size\n", size); }
+  if(DEBUG > 1) { printf("[FIND_BLOCK]: Got request to find block of size %d\n", size); }
   if(!heap_start) {
     if(DEBUG > 1) { printf("[FIND_BLOCK]: No block exist yet, exiting...\n"); }
     return NULL;
   }
   block *cur = heap_start;
   
-  for(;(cur != NULL) && (is_used(cur) != 0) && (get_size(cur) < size); cur = get_next(cur));
+  while(cur) {
+    if(DEBUG >1) {
+      printf("[FIND_BLOCK]: ");
+      pprint(cur);
+    }
+    if(!is_used(cur) && (get_size(cur) >= size)) {
+      return cur;
+    }
+    printf("[FIND_BLOCK]: Block %p is used or smaller than requested..\n", cur);
+    cur = get_next(cur);
+  }
 
-  return cur;
+  return NULL;
 }
 
 block *split_block(block *to_split, size_t size) {
@@ -173,12 +190,12 @@ block *merge_blocks(block *b1, block *b2) {
   if(DEBUG > 1) { printf("[MERGE_BLOCKS]: Merging blocks %p and %p\n", b1, b2); }
   // new size equals to sum of data segments + sizeof block header 
   // - sizeof pointer to data segment of the second block
-  b1->size = b2->size + sizeof(block) - sizeof(void *);
+  b1->size = get_size(b1) + get_size(b2) + sizeof(block) - sizeof(void *);
   // We don't need to set_next b1, since it had next in the past,
   // but we need to unset it, if b2 doesn't have next
   if(has_next(b2)) {
-    set_next(b1);
     block *b = get_next(b2);
+    if(DEBUG > 1) { printf("[MERGE_BLOCKS]: Block %p has next block %p\n", b2, b); }
     set_prev(b, b1);
   } else { unset_next(b1); }
 
@@ -194,20 +211,20 @@ void mem_free(void *addr) {
   b->size = b->size - 1;
   // now we can use actual block.size here
   // because we are sure, that all blocks are free
-  if (to_merge && is_used(to_merge) == 0) {
+  if (to_merge && !is_used(to_merge)) {
     if(DEBUG) { printf("[MEM_FREE]: Can merge this block and the next one...\n"); }
     b = merge_blocks(b, to_merge);
   }
   to_merge = get_prev(b);
-  if(to_merge && is_used(to_merge) == 0) {
+  if(to_merge && !is_used(to_merge)) {
     if(DEBUG) { printf("[MEM_FREE]: Can merge prev block and this one...\n"); }
     merge_blocks(to_merge, b);
   }
 }
 
 void pprint(block *b) {
-  printf("block: %p {\n\tsize: %d,\n\tused: %d,\n\tnext: %p,\n\tprev: %p,\n\tdata: %p\n}\n",
-         b, get_size(b), is_used(b), get_next(b), get_prev(b), b->data);
+  printf("block: %p {\n\tsize: %d,\n\tused: %d,\n\thas_next: %d,\n\tnext: %p,\n\tprev: %p,\n\tdata: %p\n}\n",
+         b, get_size(b), is_used(b), has_next(b), get_next(b), get_prev(b), b->data);
 }
 
 void mem_dump() {
