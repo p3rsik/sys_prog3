@@ -32,6 +32,11 @@ static block *heap_start = NULL;
 // Helper variable for linking of blocks
 static block *top = NULL;
 
+// Debug level
+// 1 - for main functions(mem_alloc, mem_free, mem_realloc)
+// 2 - for helper functions of main functions(merge_block, find_block...)
+static int DEBUG = 0;
+
 // Helper function to get block header from allocated memory
 block *get_header(void *);
 
