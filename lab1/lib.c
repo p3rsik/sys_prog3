@@ -34,18 +34,18 @@ block *get_prev(block *b) {
 }
 
 void set_prev(block *b, block *to_set) {
-  printf("[SET_PREV]: Setting block %p as prev for %p\n", to_set, b);
+  if(DEBUG > 1) { printf("[SET_PREV]: Setting block %p as prev for %p\n", to_set, b); }
   if(has_next(b)) {
-    printf("[SET_PREV]: Block %p has next block %p\n", b, get_next(b));
+    if(DEBUG > 1) { printf("[SET_PREV]: Block %p has next block %p\n", b, get_next(b)); }
     unset_next(b);
-    printf("[SET_PREV]: Unsetting next...\n");
+    if(DEBUG > 1) { printf("[SET_PREV]: Unsetting next...\n"); }
     b->prev = to_set;
-    printf("[SET_PREV]: Block %p has prev block %p\n", b, b->prev);
+    if(DEBUG > 1) { printf("[SET_PREV]: Block %p has prev block %p\n", b, b->prev); }
     set_next(b);
-    printf("[SET_PREV]: Setting next back on...\n");
+    if(DEBUG > 1) { printf("[SET_PREV]: Setting next back on...\n"); }
     return;
   } 
-  printf("[SET_PREV]: Setting block %p as prev for %p\n", to_set, b);
+  if(DEBUG > 1) { printf("[SET_PREV]: Setting block %p as prev for %p\n", to_set, b); }
   b->prev = to_set;
 }
 
@@ -85,14 +85,14 @@ block *find_block(size_t size) {
   block *cur = heap_start;
   
   while(cur) {
-    if(DEBUG >1) {
+    if(DEBUG > 1) {
       printf("[FIND_BLOCK]: ");
       pprint(cur);
     }
     if(!is_used(cur) && (get_size(cur) >= size)) {
       return cur;
     }
-    printf("[FIND_BLOCK]: Block %p is used or smaller than requested..\n", cur);
+    if(DEBUG > 1) { printf("[FIND_BLOCK]: Block %p is used or smaller than requested..\n", cur); }
     cur = get_next(cur);
   }
 

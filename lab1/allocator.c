@@ -48,9 +48,9 @@ int main() {
   assert(has_next(h3) == 1);
   assert(get_prev(get_next(h3)) == h3);
   
-  printf("===============\n");
+  printf("============================\n");
   mem_dump();
-  printf("===============\n");
+  printf("============================\n");
   
   printf("Freeing memory for the first block...\n");
   mem_free(p1);
@@ -67,17 +67,21 @@ int main() {
   printf("Got header4: %p\n", h4);
   printf("Size4 = %d, aligned size = %d\n", 20, get_size(h4));
 
-  printf("===============\n");
+  printf("============================\n");
   mem_dump();
-  printf("===============\n");
-  //assert();
+  printf("============================\n");
 
   printf("Freeing memory for the first 20-byte block...\n");
   mem_free(p3);
   
+  assert(get_next(h1) == h4);
+  assert(get_prev(h4) == h1);
+
   printf("\n");
-  // Let's see memory state after all the allocation, deallocation and splitting
+  // Let's see memory state after all the allocation, deallocation, splitting and merging
+  printf("============================\n");
   mem_dump();
+  printf("============================\n");
   
   return 0;
 }
