@@ -5,15 +5,27 @@ typedef struct block {
   // Block size
   // We're include bit_flag *used* in the last bit of size
   size_t size;
-  // Pointer to the next and prev blocks
-  struct block *next;
+  // Pointer to the prev block and *has_next* bit flag
   struct block *prev;
   // Pointer to the user data
   void *data;
 } block;
 
+// Get the actual size
 size_t get_size(block *);
-unsigned char is_used(block*);
+// Extract bit flag from size
+unsigned char is_used(block *);
+// Check if *next* bit flag is set
+unsigned char has_next(block *);
+// Get next block by adding size offset, 
+// returns NULL if there is no next and pointer to the next if there is one
+block *get_next(block *);
+// Set and unset *next* bit flag
+void set_next(block *);
+void unset_next(block *);
+// Get and set prev block
+block *get_prev(block *);
+void set_prev(block *, block *);
 
 // Start of our memory in heap
 static block *heap_start = NULL;
@@ -40,7 +52,13 @@ size_t align(size_t);
 
 // Get a pointer to AT LEAST this much bytes
 void *mem_alloc(size_t);
+
+// Copies [size] bytes of memory from the second pointer into the first one
+void mem_copy(void *, void *, size_t);
 void *mem_realloc(void *, size_t);
+
+// Merges second(b2) block into first one
+block *merge_blocks(block *b1, block *b2);
 // Frees memory
 void mem_free(void *);
 

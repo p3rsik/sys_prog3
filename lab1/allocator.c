@@ -13,12 +13,12 @@ int main() {
   if(p1) {
     h1 = get_header(p1);
     printf("Got header1: %p\n", h1);
-    printf("Size1 = %d, aligned size = %d\n", 8, h1->size);
+    printf("Size1 = %d, aligned size = %d\n", 8, get_size(h1));
   }
   if(p2) {
     struct block *h2 = get_header(p2);
     printf("Got header2: %p\n", h2);
-    printf("Size2 = %d, aligned size = %d\n", 228, h2->size);
+    printf("Size2 = %d, aligned size = %d\n", 228, get_size(h2));
     printf("Freeing memory for the second block...\n");
     mem_free(p2);
     assert(is_used(h2) == 0);
@@ -27,7 +27,7 @@ int main() {
     printf("Allocated: %p\n", p3);
     if(p1 && p3) {
       struct block *h3 = get_header(p3);
-      assert(h3->prev == h1);
+      assert(get_prev(h3) == h1);
     }
   }
   
